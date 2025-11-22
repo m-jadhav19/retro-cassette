@@ -20,6 +20,7 @@ const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject }) => {
   const volumeTrackRef = useRef<SVGRectElement>(null);
   const progressTrackRef = useRef<SVGRectElement>(null);
   const isScrubbingRef = useRef(false); // Ref to avoid re-render/closure issues during updates
+  const isVolumeDraggingRef = useRef(false); // Track volume dragging state
 
   const [isInserting, setIsInserting] = useState(false);
 
@@ -116,6 +117,56 @@ const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject }) => {
     }
   }, [volume]);
 
+  // Global pointer event handlers for dragging outside element
+  useEffect(() => {
+    const handleGlobalPointerMove = (e: PointerEvent) => {
+      if (isVolumeDraggingRef.current && volumeTrackRef.current) {
+        e.preventDefault();
+        const rect = volumeTrackRef.current.getBoundingClientRect();
+        const relativeY = e.clientY - rect.top;
+        const percent = Math.max(0, Math.min(1, relativeY / rect.height));
+        setVolume(1 - percent);
+      }
+      if (isScrubbingRef.current && progressTrackRef.current && duration > 0) {
+        e.preventDefault();
+        const rect = progressTrackRef.current.getBoundingClientRect();
+        const relativeX = e.clientX - rect.left;
+        const percent = Math.max(0, Math.min(1, relativeX / rect.width));
+        const newTime = percent * duration;
+        setCurrentTime(newTime);
+        if (audioRef.current) {
+          audioRef.current.currentTime = newTime;
+        }
+      }
+    };
+
+    const handleGlobalPointerUp = (e: PointerEvent) => {
+      if (isVolumeDraggingRef.current) {
+        isVolumeDraggingRef.current = false;
+        if (e.target && 'releasePointerCapture' in e.target) {
+          (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+        }
+      }
+      if (isScrubbingRef.current) {
+        isScrubbingRef.current = false;
+        if (e.target && 'releasePointerCapture' in e.target) {
+          (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+        }
+      }
+    };
+
+    // Always add listeners - they check refs internally
+    window.addEventListener('pointermove', handleGlobalPointerMove, { passive: false });
+    window.addEventListener('pointerup', handleGlobalPointerUp);
+    window.addEventListener('pointercancel', handleGlobalPointerUp);
+
+    return () => {
+      window.removeEventListener('pointermove', handleGlobalPointerMove);
+      window.removeEventListener('pointerup', handleGlobalPointerUp);
+      window.removeEventListener('pointercancel', handleGlobalPointerUp);
+    };
+  }, [duration]); // Include duration since it's used in the handler
+
   const play = async () => {
     if (audioRef.current) {
       try {
@@ -139,13 +190,17 @@ const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject }) => {
     playSfx(SFX.CLICK);
   };
 
-  const handlePlayClick = () => {
+  const handlePlayClick = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
     if (!currentTape) return;
     if (status === PlayerStatus.PLAYING) return; 
     play();
   };
 
-  const handleStopClick = () => {
+  const handleStopClick = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
     if (status === PlayerStatus.PLAYING || status === PlayerStatus.PAUSED) {
         stop();
     } else if (currentTape) {
@@ -153,7 +208,9 @@ const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject }) => {
     }
   };
 
-  const handleRewind = () => {
+  const handleRewind = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
     if (audioRef.current) {
       playSfx(SFX.CLICK);
       audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 5);
@@ -161,7 +218,9 @@ const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject }) => {
     }
   };
 
-  const handleFastForward = () => {
+  const handleFastForward = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
     if (audioRef.current) {
       playSfx(SFX.CLICK);
       audioRef.current.currentTime = Math.min(audioRef.current.duration, audioRef.current.currentTime + 5);
@@ -179,44 +238,63 @@ const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject }) => {
 
   // Volume Slider Logic
   const handleVolumePointerDown = (e: React.PointerEvent) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
+    e.stopPropagation();
+    e.preventDefault();
+    isVolumeDraggingRef.current = true;
+    const element = e.currentTarget as HTMLElement;
+    element.setPointerCapture(e.pointerId);
     handleVolumeDrag(e);
   };
 
   const handleVolumeDrag = (e: React.PointerEvent) => {
-    if (volumeTrackRef.current) {
-      const rect = volumeTrackRef.current.getBoundingClientRect();
-      const relativeY = e.clientY - rect.top;
-      const percent = Math.max(0, Math.min(1, relativeY / rect.height));
-      setVolume(1 - percent); 
-    }
+    if (!isVolumeDraggingRef.current || !volumeTrackRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = volumeTrackRef.current.getBoundingClientRect();
+    const relativeY = e.clientY - rect.top;
+    const percent = Math.max(0, Math.min(1, relativeY / rect.height));
+    setVolume(1 - percent); 
+  };
+
+  const handleVolumePointerUp = (e: React.PointerEvent) => {
+    if (!isVolumeDraggingRef.current) return;
+    e.stopPropagation();
+    isVolumeDraggingRef.current = false;
+    const element = e.currentTarget as HTMLElement;
+    element.releasePointerCapture(e.pointerId);
   };
 
   // Scrubbing Logic
   const handleProgressPointerDown = (e: React.PointerEvent) => {
     if (!currentTape || !audioRef.current) return;
+    e.stopPropagation();
+    e.preventDefault();
     isScrubbingRef.current = true;
-    e.currentTarget.setPointerCapture(e.pointerId);
+    const element = e.currentTarget as HTMLElement;
+    element.setPointerCapture(e.pointerId);
     handleProgressDrag(e);
   };
 
   const handleProgressDrag = (e: React.PointerEvent) => {
-    if (progressTrackRef.current && duration > 0) {
-      const rect = progressTrackRef.current.getBoundingClientRect();
-      const relativeX = e.clientX - rect.left;
-      const percent = Math.max(0, Math.min(1, relativeX / rect.width));
-      const newTime = percent * duration;
-      setCurrentTime(newTime);
-      if (audioRef.current) {
-        audioRef.current.currentTime = newTime;
-      }
+    if (!isScrubbingRef.current || !progressTrackRef.current || duration <= 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = progressTrackRef.current.getBoundingClientRect();
+    const relativeX = e.clientX - rect.left;
+    const percent = Math.max(0, Math.min(1, relativeX / rect.width));
+    const newTime = percent * duration;
+    setCurrentTime(newTime);
+    if (audioRef.current) {
+      audioRef.current.currentTime = newTime;
     }
   };
 
   const handleProgressPointerUp = (e: React.PointerEvent) => {
     if (!isScrubbingRef.current) return;
+    e.stopPropagation();
     isScrubbingRef.current = false;
-    e.currentTarget.releasePointerCapture(e.pointerId);
+    const element = e.currentTarget as HTMLElement;
+    element.releasePointerCapture(e.pointerId);
   };
 
   const knobY = (1 - volume) * 70;
@@ -402,6 +480,8 @@ const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject }) => {
               className="cursor-ns-resize outline-none"
               onPointerDown={handleVolumePointerDown}
               onPointerMove={handleVolumeDrag}
+              onPointerUp={handleVolumePointerUp}
+              onPointerCancel={handleVolumePointerUp}
               style={{ touchAction: 'none' }}
             >
                 <rect 
@@ -425,26 +505,26 @@ const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject }) => {
             
             <g transform="translate(0, 150)">
                 {/* STOP BUTTON */}
-                <g className="cursor-pointer" onClick={handleStopClick}>
+                <g className="cursor-pointer" onPointerDown={handleStopClick} style={{ touchAction: 'manipulation' }}>
                     <rect x="5" y="0" width="30" height="50" rx="2" fill="#333" stroke="#111" strokeWidth="0.5" filter="url(#button-bevel)" className="active:translate-y-[1px]" />
                     <rect x="15" y="20" width="10" height="10" fill="#9ca3af" />
                 </g>
                 
                 {/* PLAY BUTTON */}
-                <g className="cursor-pointer" transform="translate(0, 60)" onClick={handlePlayClick}>
+                <g className="cursor-pointer" transform="translate(0, 60)" onPointerDown={handlePlayClick} style={{ touchAction: 'manipulation' }}>
                     <rect x="5" y="0" width="30" height="50" rx="2" fill="#f97316" stroke="#c2410c" strokeWidth="0.5" filter="url(#button-bevel)" className={`active:translate-y-[1px] ${status === PlayerStatus.PLAYING ? 'translate-y-[2px] brightness-90' : ''}`} />
                     <path d="M 15,20 L 25,25 L 15,30 Z" fill="#fff" />
                 </g>
 
                 {/* REWIND BUTTON */}
-                <g className="cursor-pointer" transform="translate(0, 120)" onClick={handleRewind}>
+                <g className="cursor-pointer" transform="translate(0, 120)" onPointerDown={handleRewind} style={{ touchAction: 'manipulation' }}>
                     <rect x="5" y="0" width="30" height="50" rx="2" fill="#333" stroke="#111" strokeWidth="0.5" filter="url(#button-bevel)" className="active:translate-y-[1px]" />
                     {/* Double Arrow Left */}
                     <path d="M 22,20 L 14,25 L 22,30 M 14,20 L 6,25 L 14,30" transform="translate(4,0)" fill="#9ca3af" />
                 </g>
 
                 {/* FAST FORWARD BUTTON */}
-                <g className="cursor-pointer" transform="translate(0, 180)" onClick={handleFastForward}>
+                <g className="cursor-pointer" transform="translate(0, 180)" onPointerDown={handleFastForward} style={{ touchAction: 'manipulation' }}>
                     <rect x="5" y="0" width="30" height="50" rx="2" fill="#333" stroke="#111" strokeWidth="0.5" filter="url(#button-bevel)" className="active:translate-y-[1px]" />
                     {/* Double Arrow Right */}
                     <path d="M 10,20 L 18,25 L 10,30 M 18,20 L 26,25 L 18,30" transform="translate(4,0)" fill="#9ca3af" />
