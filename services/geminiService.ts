@@ -2,7 +2,26 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Song } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Lazy initialization of AI client to avoid errors if API key is not set
+let ai: GoogleGenAI | null = null;
+
+const getAI = (): GoogleGenAI | null => {
+  if (ai) return ai;
+  
+  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === 'undefined' || apiKey === '') {
+    console.warn("Gemini API key not set. Some features may not work.");
+    return null;
+  }
+  
+  try {
+    ai = new GoogleGenAI({ apiKey });
+    return ai;
+  } catch (error) {
+    console.error("Failed to initialize Gemini AI:", error);
+    return null;
+  }
+};
 
 // Helper to convert HSL to Hex
 const hslToHex = (h: number, s: number, l: number) => {
@@ -68,14 +87,17 @@ export const searchMusic = async (query: string): Promise<Song[]> => {
 
     // 1. Optional: Use Gemini to interpret "vibe" if the query seems abstract
     if (query.split(' ').length > 3) {
-        try {
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: `Convert this user vibe description into a simple 1-2 word search term for a music database (e.g. "rainy day" -> "acoustic", "gym" -> "workout"). Input: "${query}"`,
-            });
-            searchTerm = response.text?.trim() || query;
-        } catch (e) {
-            console.log("Gemini interpretation failed, using raw query");
+        const aiClient = getAI();
+        if (aiClient) {
+            try {
+                const response = await aiClient.models.generateContent({
+                    model: 'gemini-2.5-flash',
+                    contents: `Convert this user vibe description into a simple 1-2 word search term for a music database (e.g. "rainy day" -> "acoustic", "gym" -> "workout"). Input: "${query}"`,
+                });
+                searchTerm = response.text?.trim() || query;
+            } catch (e) {
+                console.log("Gemini interpretation failed, using raw query");
+            }
         }
     }
 
