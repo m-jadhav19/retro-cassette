@@ -1,3 +1,5 @@
+import insertSound from './components/audio/insert.mp3';
+import ejectSound from './components/audio/eject.mp3';
 
 // Reliable MP3 URLs for defaults (Free Music Archive / Stable Sources)
 export const DEMO_AUDIO_URL = "https://files.freemusicarchive.org/storage-freemusicarchive-org/music/no_curator/Tours/Enthusiast/Tours_-_01_-_Enthusiast.mp3"; 
@@ -5,8 +7,8 @@ export const DEMO_AUDIO_URL = "https://files.freemusicarchive.org/storage-freemu
 export const SFX = {
   CLICK: "https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.m4a",
   PLAY_CLICK: "https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.m4a",
-  INSERT: "https://assets.mixkit.co/active_storage/sfx/2573/2573-preview.m4a",
-  EJECT: "https://assets.mixkit.co/active_storage/sfx/2573/2573-preview.m4a", 
+  INSERT: insertSound,
+  EJECT: ejectSound, 
   MOTOR: "https://assets.mixkit.co/active_storage/sfx/1128/1128-preview.m4a",
   GRAB: "https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.m4a", // Plastic handling
   DROP: "https://assets.mixkit.co/active_storage/sfx/2569/2569-preview.m4a"  // Plastic drop
