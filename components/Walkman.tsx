@@ -172,7 +172,6 @@ const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject }) => {
       try {
         await audioRef.current.play();
         setStatus(PlayerStatus.PLAYING);
-        playSfx(SFX.PLAY_CLICK);
       } catch (e) {
         console.error("Audio play failed (Promise rejected):", e);
         setStatus(PlayerStatus.STOPPED);
@@ -187,7 +186,6 @@ const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject }) => {
       setCurrentTime(0);
     }
     setStatus(PlayerStatus.STOPPED);
-    playSfx(SFX.CLICK);
   };
 
   const handlePlayClick = (e: React.PointerEvent) => {
@@ -212,7 +210,6 @@ const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject }) => {
     e.stopPropagation();
     e.preventDefault();
     if (audioRef.current) {
-      playSfx(SFX.CLICK);
       audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 5);
       setCurrentTime(audioRef.current.currentTime);
     }
@@ -222,7 +219,6 @@ const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject }) => {
     e.stopPropagation();
     e.preventDefault();
     if (audioRef.current) {
-      playSfx(SFX.CLICK);
       audioRef.current.currentTime = Math.min(audioRef.current.duration, audioRef.current.currentTime + 5);
       setCurrentTime(audioRef.current.currentTime);
     }

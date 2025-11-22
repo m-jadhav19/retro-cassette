@@ -264,19 +264,24 @@ const App: React.FC = () => {
   
   // Initialize library with random positions
   const [library, setLibrary] = useState<Song[]>(() => {
-    return (DEFAULT_SONGS as Song[]).map((song, index) => ({
-      ...song,
-      x: song.x ?? (450 + (index * 180) % 600), // Start slightly to the right
-      y: song.y ?? (150 + (index * 120) % 400),
-      rotation: song.rotation ?? ((Math.random() * 40) - 20)
-    }));
+    return (DEFAULT_SONGS as Song[]).map((song, index) => {
+      // Avoid Walkman area (x: 600-900, y: 200-680)
+      // Spawn cassettes to the left or right of Walkman
+      const offsetX = index % 2 === 0 ? 200 + (index * 150) : 950 + (index * 150);
+      return {
+        ...song,
+        x: song.x ?? offsetX,
+        y: song.y ?? (150 + (index * 120) % 400), // Spread out vertically, avoid Walkman area
+        rotation: song.rotation ?? ((Math.random() * 30) - 15) // Less extreme rotation
+      };
+    });
   });
   
   const [currentTape, setCurrentTape] = useState<Song | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
   
   // Walkman State
-  const [walkmanPosition, setWalkmanPosition] = useState({ x: 100, y: 160, rotation: 2 });
+  const [walkmanPosition, setWalkmanPosition] = useState({ x: 600, y: 200, rotation: -2 });
   const [isWalkmanDragging, setIsWalkmanDragging] = useState(false);
   const [walkmanDragOffset, setWalkmanDragOffset] = useState<{x: number, y: number} | null>(null);
   
@@ -291,17 +296,21 @@ const App: React.FC = () => {
   const performSearch = async (searchTerm: string) => {
     if (!searchTerm.trim()) return;
     
-    playSound('CLICK');
     setIsLoading(true);
     
     const results = await searchMusic(searchTerm);
     
-    const positionedResults = results.map((song) => ({
-      ...song,
-      x: 500 + (Math.random() * 300 - 150),
-      y: 300 + (Math.random() * 300 - 150),
-      rotation: Math.random() * 90 - 45
-    }));
+    const positionedResults = results.map((song, index) => {
+      // Avoid Walkman area (x: 600-900, y: 200-680)
+      // Alternate between left and right of Walkman
+      const baseX = index % 2 === 0 ? 200 + (index * 150) : 950 + (index * 150);
+      return {
+        ...song,
+        x: baseX + (Math.random() * 100 - 50),
+        y: 150 + (index * 120) % 400 + (Math.random() * 100 - 50), // Avoid Walkman vertical area
+        rotation: (Math.random() * 30) - 15
+      };
+    });
 
     // Replace existing library with new search results
     setLibrary(positionedResults); 
@@ -334,8 +343,9 @@ const App: React.FC = () => {
     if (currentTape) {
       const returnedTape = {
         ...currentTape,
-        x: 300 + Math.random() * 50,
-        y: 500 + Math.random() * 50,
+        // Spawn to the right of Walkman to avoid overlap
+        x: 950 + Math.random() * 100,
+        y: 300 + Math.random() * 100,
         rotation: Math.random() * 20 - 10
       };
       setLibrary(prev => [...prev, returnedTape]);
@@ -347,9 +357,10 @@ const App: React.FC = () => {
     if (currentTape) {
       const ejectedTape = {
         ...currentTape,
-        x: 280, 
-        y: 400,
-        rotation: Math.random() * 10 - 5
+        // Spawn to the right of Walkman to avoid overlap
+        x: 950 + Math.random() * 100,
+        y: 250 + Math.random() * 100,
+        rotation: Math.random() * 15 - 7.5
       };
       setLibrary(prev => [ejectedTape, ...prev]);
       setCurrentTape(null);
@@ -362,7 +373,6 @@ const App: React.FC = () => {
     const element = e.currentTarget as HTMLDivElement;
     element.setPointerCapture(e.pointerId);
     
-    playSound('GRAB');
     setIsWalkmanDragging(true);
     setWalkmanDragOffset({
         x: e.clientX - walkmanPosition.x,
@@ -386,7 +396,6 @@ const App: React.FC = () => {
     const element = e.currentTarget as HTMLDivElement;
     element.releasePointerCapture(e.pointerId);
     
-    playSound('DROP');
     setIsWalkmanDragging(false);
     setWalkmanDragOffset(null);
   };
@@ -396,8 +405,6 @@ const App: React.FC = () => {
     e.stopPropagation();
     const element = e.currentTarget as HTMLDivElement;
     element.setPointerCapture(e.pointerId);
-    
-    playSound('GRAB');
 
     // Bring to front
     setLibrary(prev => {
@@ -453,10 +460,6 @@ const App: React.FC = () => {
            droppedInWalkman = true;
         }
       }
-    }
-    
-    if (!droppedInWalkman) {
-      playSound('DROP');
     }
     
     setDragState(null);

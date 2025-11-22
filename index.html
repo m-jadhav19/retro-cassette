@@ -5,27 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>RetroCassette</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Rock+Salt&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Rock+Salt&family=Inter:wght@400;600;800&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='5' y='15' width='90' height='65' rx='6' fill='%231e293b' stroke='%23334155' stroke-width='2'/%3E%3Cpath d='M 10,75 L 15,60 L 85,60 L 90,75 Z' fill='%230f172a' opacity='0.5'/%3E%3Crect x='10' y='20' width='80' height='38' rx='4' fill='%23f97316'/%3E%3Crect x='25' y='26' width='50' height='26' rx='3' fill='%231e293b'/%3E%3Ccircle cx='38' cy='39' r='8' fill='%23f1f5f9'/%3E%3Ccircle cx='62' cy='39' r='8' fill='%23f1f5f9'/%3E%3C/svg%3E"
+    />
+
     <style>
       /* Custom Scrollbar for the crate */
       .scrollbar-hide::-webkit-scrollbar {
-          display: none;
+        display: none;
       }
       .scrollbar-hide {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
+        -ms-overflow-style: none;
+        scrollbar-width: none;
       }
-      
+
       @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
       }
       .animate-spin-slow {
         animation: spin 2s linear infinite;
       }
-      
+
       /* Texture/Noise overlay effect */
       .noise-overlay {
         position: fixed;
@@ -39,19 +52,21 @@
       }
 
       .font-hand {
-        font-family: 'Permanent Marker', cursive;
+        font-family: "Permanent Marker", cursive;
       }
-      
+
       .wood-texture {
         background-color: #3a2820;
-        background-image: 
-          linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px),
+        background-image: linear-gradient(
+            rgba(255, 255, 255, 0.03) 1px,
+            transparent 1px
+          ),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
           url("https://www.transparenttextures.com/patterns/wood-pattern.png");
         background-size: 100px 100px, 100px 100px, auto;
       }
     </style>
-</head>
+  </head>
   <body class="bg-slate-900 text-slate-100 overflow-hidden select-none">
     <div id="root"></div>
     <div class="noise-overlay"></div>
