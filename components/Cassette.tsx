@@ -10,19 +10,19 @@ interface CassetteProps {
   style?: React.CSSProperties;
 }
 
-const Cassette: React.FC<CassetteProps> = ({ 
-  song, 
-  isDraggable = true, 
-  className = "", 
+const Cassette: React.FC<CassetteProps> = ({
+  song,
+  isDraggable = true,
+  className = "",
   isSpinning = false,
   style
 }) => {
-  
+
   // Unique IDs for filters to prevent conflicts when multiple cassettes are rendered
   const filterId = useMemo(() => Math.random().toString(36).substr(2, 9), []);
-  
+
   return (
-    <div 
+    <div
       className={`relative inline-block ${className} ${isDraggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
       style={style}
     >
@@ -55,26 +55,26 @@ const Cassette: React.FC<CassetteProps> = ({
 
         {/* --- CASSETTE BODY --- */}
         {/* Main Shape */}
-        <path 
-          d="M 20,20 H 580 A 15,15 0 0 1 595,35 V 345 A 15,15 0 0 1 580,360 H 540 L 530,370 H 70 L 60,360 H 20 A 15,15 0 0 1 5,345 V 35 A 15,15 0 0 1 20,20 Z" 
-          fill={`url(#body-gradient-${filterId})`} 
-          stroke="#000" 
-          strokeOpacity="0.2" 
-          strokeWidth="1" 
+        <path
+          d="M 20,20 H 580 A 15,15 0 0 1 595,35 V 345 A 15,15 0 0 1 580,360 H 540 L 530,370 H 70 L 60,360 H 20 A 15,15 0 0 1 5,345 V 35 A 15,15 0 0 1 20,20 Z"
+          fill={`url(#body-gradient-${filterId})`}
+          stroke="#000"
+          strokeOpacity="0.2"
+          strokeWidth="1"
         />
-        
+
         {/* Top Bevel Highlight */}
         <path d="M 20,22 H 580 A 12,12 0 0 1 592,34" stroke="#fff" strokeWidth="2" fill="none" opacity="0.5" />
-        
+
         {/* Bottom Bevel Shadow */}
         <path d="M 5,345 A 15,15 0 0 0 20,360 H 60 L 70,370 H 530 L 540,360 H 580" stroke="#000" strokeWidth="3" fill="none" opacity="0.2" />
-        
+
         {/* Texture Overlay */}
-        <path 
-          d="M 20,20 H 580 A 15,15 0 0 1 595,35 V 345 A 15,15 0 0 1 580,360 H 540 L 530,370 H 70 L 60,360 H 20 A 15,15 0 0 1 5,345 V 35 A 15,15 0 0 1 20,20 Z" 
-          fill={song.color} 
-          filter={`url(#plastic-grain-${filterId})`} 
-          opacity="0.3" 
+        <path
+          d="M 20,20 H 580 A 15,15 0 0 1 595,35 V 345 A 15,15 0 0 1 580,360 H 540 L 530,370 H 70 L 60,360 H 20 A 15,15 0 0 1 5,345 V 35 A 15,15 0 0 1 20,20 Z"
+          fill={song.color}
+          filter={`url(#plastic-grain-${filterId})`}
+          opacity="0.3"
         />
 
         {/* --- LABEL AREA --- */}
@@ -83,36 +83,36 @@ const Cassette: React.FC<CassetteProps> = ({
           {/* Stripes */}
           <line x1="0" y1="40" x2="510" y2="40" stroke={song.color} strokeWidth="2" opacity="0.4" />
           <line x1="0" y1="44" x2="510" y2="44" stroke={song.color} strokeWidth="1" opacity="0.3" />
-          
+
           {/* Side Markers */}
           <text x="25" y="32" fontFamily="sans-serif" fontSize="24" fontWeight="900" fill={song.color}>A</text>
           <text x="470" y="32" fontFamily="sans-serif" fontSize="14" fontWeight="bold" fill={song.color} opacity="0.6">NR</text>
 
           {/* --- HTML Text Overlay for Wrapping --- */}
-          <foreignObject x="55" y="10" width="400" height="180">
-            <div className="w-full h-full flex flex-col items-center justify-center text-center" style={{ color: song.color }}>
-               {/* Title: Handwritten font, allows wrapping */}
-               <div 
-                 className="font-hand leading-tight w-full"
-                 style={{ 
-                   fontSize: song.title.length > 20 ? '20px' : '28px',
-                   display: '-webkit-box',
-                   WebkitLineClamp: 2,
-                   WebkitBoxOrient: 'vertical',
-                   overflow: 'hidden',
-                   marginTop: '10px'
-                 }}
-               >
-                 {song.title}
-               </div>
-               
-               {/* Artist: Smaller font, pushed to bottom area */}
-               <div 
-                 className="font-sans font-bold uppercase opacity-70 tracking-wider w-full truncate mt-2"
-                 style={{ fontSize: '12px', fontFamily: "'Rock Salt', cursive" }}
-               >
-                 {song.artist}
-               </div>
+          <foreignObject x="55" y="5" width="490" height="180">
+            <div className="w-full h-full flex flex-col items-start justify-start text-left" style={{ color: song.color }}>
+              {/* Title: Handwritten font, positioned at top-left */}
+              <div
+                className="font-hand leading-tight"
+                style={{
+                  fontSize: song.title.length > 20 ? '20px' : '28px',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  maxWidth: '400px'
+                }}
+              >
+                {song.title}
+              </div>
+
+              {/* Artist: Smaller font, below title */}
+              <div
+                className="font-sans font-bold uppercase opacity-70 tracking-wider truncate mt-2"
+                style={{ fontSize: '12px', fontFamily: "'Rock Salt', cursive", maxWidth: '400px' }}
+              >
+                {song.artist}
+              </div>
             </div>
           </foreignObject>
         </g>
@@ -126,10 +126,10 @@ const Cassette: React.FC<CassetteProps> = ({
         <g transform="translate(185, 175)">
           <circle r="58" fill="#221d1d" stroke="#111" strokeWidth="1" />
           {/* White Teeth */}
-          <g 
-            style={{ 
-              animation: isSpinning ? 'spin 4s linear infinite reverse' : 'none', 
-              transformOrigin: '0px 0px' 
+          <g
+            style={{
+              animation: isSpinning ? 'spin 4s linear infinite reverse' : 'none',
+              transformOrigin: '0px 0px'
             }}
           >
             <circle r="22" fill="#fff" stroke="#ccc" strokeWidth="1" />
@@ -146,13 +146,13 @@ const Cassette: React.FC<CassetteProps> = ({
         {/* Right Reel */}
         <g transform="translate(415, 175)">
           <circle r="45" fill="#221d1d" stroke="#111" strokeWidth="1" />
-          <g 
-             style={{ 
-              animation: isSpinning ? 'spin 4s linear infinite reverse' : 'none', 
-              transformOrigin: '0px 0px' 
+          <g
+            style={{
+              animation: isSpinning ? 'spin 4s linear infinite reverse' : 'none',
+              transformOrigin: '0px 0px'
             }}
           >
-             <circle r="22" fill="#fff" stroke="#ccc" strokeWidth="1" />
+            <circle r="22" fill="#fff" stroke="#ccc" strokeWidth="1" />
             {[0, 60, 120, 180, 240, 300].map((deg) => (
               <rect key={deg} x="-4" y="-22" width="8" height="12" fill="#fff" transform={`rotate(${deg})`} />
             ))}
