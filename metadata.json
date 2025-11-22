@@ -1,0 +1,5 @@
+{
+  "name": "RetroCassette",
+  "description": "A nostalgic 2D interactive Walkman where you search for music vibes using Gemini, generating unique cassette tapes to drag, drop, and play.",
+  "requestFramePermissions": []
+}
