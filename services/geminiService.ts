@@ -90,20 +90,112 @@ export const searchMusic = async (query: string): Promise<Song[]> => {
     // 3. Filter out tracks without previews
     const validResults = data.results.filter((track: any) => track.previewUrl && track.trackName && track.artistName);
 
-    // 4. Shuffle the valid results to simulate "random songs" from the query pool
-    const shuffledResults = shuffleArray(validResults);
+    // 4. Helper to clean and format titles
+    const cleanTitle = (title: string): string => {
+        if (!title) return title;
+        
+        // Remove common generic phrases that appear in many tracks
+        const genericPhrases = [
+            'Jazz Classics',
+            'Background for',
+            'Music for',
+            'Ambiance for',
+            'Mood for',
+            'Vibe for',
+            'Soundtrack for',
+            'Backdrops for',
+            'Ambience for',
+            'Moods for',
+            'Music for Cooking',
+            'Background Music',
+            'Chilled Music',
+            'Relaxed Music',
+            'Lively Music',
+            'Sophisticated',
+            'Charming',
+            'Delightful',
+            'Sensational',
+            'Bright',
+            'Sprightly',
+            'Pulsating',
+            'Inspiring',
+            'Happy',
+            'Simplistic',
+            'Sultry',
+            'Stylish',
+            'No Drums Jazz',
+            'for Lockdowns',
+            'for Quarantine',
+            'for Work from Home',
+            'for Preparing Dinner',
+            'for Cooking Dinner',
+            'for Cooking',
+            ' - '
+        ];
+        
+        let cleaned = title.trim();
+        
+        // Remove generic phrases (case-insensitive)
+        genericPhrases.forEach(phrase => {
+            const regex = new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+            cleaned = cleaned.replace(regex, '').trim();
+        });
+        
+        // If title becomes too short or empty after cleaning, use original but clean it up
+        if (cleaned.length < 3) {
+            cleaned = title.trim();
+        }
+        
+        // Remove extra whitespace and clean up
+        cleaned = cleaned.replace(/\s+/g, ' ').trim();
+        
+        // Capitalize first letter of each word (title case)
+        cleaned = cleaned.split(' ').map(word => {
+            if (word.length === 0) return word;
+            return word[0].toUpperCase() + word.slice(1).toLowerCase();
+        }).join(' ');
+        
+        // Handle special cases (keep certain words lowercase)
+        const lowercaseWords = ['a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'];
+        cleaned = cleaned.split(' ').map((word, index) => {
+            if (index > 0 && lowercaseWords.includes(word.toLowerCase())) {
+                return word.toLowerCase();
+            }
+            return word;
+        }).join(' ');
+        
+        return cleaned || title; // Fallback to original if cleaning results in empty
+    };
 
-    // 5. Take the top 6 after shuffling
+    // 5. Remove duplicate titles (case-insensitive) and clean them
+    const seenTitles = new Set<string>();
+    const uniqueResults: any[] = [];
+    
+    for (const track of validResults) {
+        const cleanedTitle = cleanTitle(track.trackName).toLowerCase();
+        if (!seenTitles.has(cleanedTitle)) {
+            seenTitles.add(cleanedTitle);
+            uniqueResults.push(track);
+        }
+    }
+
+    // 6. Shuffle the unique results to simulate "random songs" from the query pool
+    const shuffledResults = shuffleArray(uniqueResults);
+
+    // 7. Take the top 6 after shuffling and clean titles
     const songs: Song[] = shuffledResults.slice(0, 6).map((track: any, index: number) => {
         // Mix genre and artist for unique body color
         const baseColor = stringToColor(track.primaryGenreName + track.artistName + "v2"); 
         // Use track name for label tint
         const accentColor = stringToColor(track.trackName, true); 
+        
+        const cleanedTitle = cleanTitle(track.trackName);
+        const cleanedArtist = track.artistName.trim();
 
         return {
             id: `itunes-${track.trackId}-${Math.random().toString(36).substr(2, 5)}`, // Append random string to ID to ensure uniqueness on repeated searches
-            title: track.trackName,
-            artist: track.artistName,
+            title: cleanedTitle,
+            artist: cleanedArtist,
             color: baseColor,
             accentColor: accentColor,
             duration: "0:30",

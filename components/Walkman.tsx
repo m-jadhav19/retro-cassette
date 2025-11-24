@@ -4,23 +4,30 @@ import { Song, PlayerStatus } from '../types';
 import { SFX } from '../constants';
 import Cassette from './Cassette';
 
+interface SharedAudio {
+  status: PlayerStatus;
+  currentTime: number;
+  duration: number;
+  volume: number;
+  setVolume: (vol: number) => void;
+  onPlay: () => void;
+  onStop: () => void;
+  onSeek: (time: number) => void;
+  isScrubbingRef: React.MutableRefObject<boolean>;
+}
+
 interface WalkmanProps {
   currentTape: Song | null;
   onEject: () => void;
+  sharedAudio: SharedAudio;
 }
 
-const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject }) => {
-  const [status, setStatus] = useState<PlayerStatus>(PlayerStatus.IDLE);
-  const [volume, setVolume] = useState(0.7); // 0 to 1
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const playTimeoutRef = useRef<number | null>(null);
+const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject, sharedAudio }) => {
+  const { status, currentTime, duration, volume, setVolume, onPlay, onStop, onSeek, isScrubbingRef } = sharedAudio;
+  
   const volumeTrackRef = useRef<SVGRectElement>(null);
   const progressTrackRef = useRef<SVGRectElement>(null);
-  const isScrubbingRef = useRef(false); // Ref to avoid re-render/closure issues during updates
-  const isVolumeDraggingRef = useRef(false); // Track volume dragging state
+  const isVolumeDraggingRef = useRef(false);
 
   const [isInserting, setIsInserting] = useState(false);
 
@@ -39,83 +46,16 @@ const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject }) => {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  // Initialize Audio when tape changes
+  // Handle insertion animation when tape changes
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.removeAttribute('src');
-      audioRef.current.load();
-      audioRef.current = null;
-    }
-    if (playTimeoutRef.current) {
-      clearTimeout(playTimeoutRef.current);
-    }
-
-    setCurrentTime(0);
-    setDuration(0);
-
     if (currentTape) {
       setIsInserting(true);
-      
       const timer = setTimeout(() => setIsInserting(false), 600);
-
-      if (currentTape.audioUrl) {
-        const newAudio = new Audio(currentTape.audioUrl);
-        newAudio.loop = true;
-        newAudio.volume = volume;
-        
-        newAudio.onloadedmetadata = () => {
-          setDuration(newAudio.duration);
-        };
-
-        newAudio.ontimeupdate = () => {
-          if (!isScrubbingRef.current) {
-            setCurrentTime(newAudio.currentTime);
-          }
-        };
-        
-        newAudio.onerror = (e) => {
-          let errorMsg = "Unknown error";
-          if (typeof e !== 'string' && e.target) {
-            const error = (e.target as HTMLAudioElement).error;
-            if (error) {
-               errorMsg = `Code: ${error.code}, Message: ${error.message}`;
-            }
-          } else if (typeof e === 'string') {
-            errorMsg = e;
-          }
-          console.error("Audio playback error:", errorMsg, currentTape.audioUrl);
-          setStatus(PlayerStatus.STOPPED);
-        };
-        
-        audioRef.current = newAudio;
-        setStatus(PlayerStatus.STOPPED);
-
-        // Auto-play after insertion animation + small delay
-        playTimeoutRef.current = window.setTimeout(() => {
-            play(); 
-        }, 1000); 
-      } else {
-        setStatus(PlayerStatus.IDLE);
-      }
       return () => clearTimeout(timer);
     } else {
-      setStatus(PlayerStatus.IDLE);
       setIsInserting(false);
     }
-
-    return () => {
-      if (playTimeoutRef.current) clearTimeout(playTimeoutRef.current);
-      if (audioRef.current) audioRef.current.pause();
-    };
   }, [currentTape]);
-
-  // Update volume when state changes
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
-    }
-  }, [volume]);
 
   // Global pointer event handlers for dragging outside element
   useEffect(() => {
@@ -133,10 +73,7 @@ const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject }) => {
         const relativeX = e.clientX - rect.left;
         const percent = Math.max(0, Math.min(1, relativeX / rect.width));
         const newTime = percent * duration;
-        setCurrentTime(newTime);
-        if (audioRef.current) {
-          audioRef.current.currentTime = newTime;
-        }
+        onSeek(newTime);
       }
     };
 
@@ -167,40 +104,19 @@ const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject }) => {
     };
   }, [duration]); // Include duration since it's used in the handler
 
-  const play = async () => {
-    if (audioRef.current) {
-      try {
-        await audioRef.current.play();
-        setStatus(PlayerStatus.PLAYING);
-      } catch (e) {
-        console.error("Audio play failed (Promise rejected):", e);
-        setStatus(PlayerStatus.STOPPED);
-      }
-    }
-  };
-
-  const stop = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0; // Reset to start
-      setCurrentTime(0);
-    }
-    setStatus(PlayerStatus.STOPPED);
-  };
-
   const handlePlayClick = (e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
     if (!currentTape) return;
     if (status === PlayerStatus.PLAYING) return; 
-    play();
+    onPlay();
   };
 
   const handleStopClick = (e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
     if (status === PlayerStatus.PLAYING || status === PlayerStatus.PAUSED) {
-        stop();
+        onStop();
     } else if (currentTape) {
         handleEject();
     }
@@ -209,23 +125,17 @@ const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject }) => {
   const handleRewind = (e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    if (audioRef.current) {
-      audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 5);
-      setCurrentTime(audioRef.current.currentTime);
-    }
+    onSeek(Math.max(0, currentTime - 5));
   };
 
   const handleFastForward = (e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    if (audioRef.current) {
-      audioRef.current.currentTime = Math.min(audioRef.current.duration, audioRef.current.currentTime + 5);
-      setCurrentTime(audioRef.current.currentTime);
-    }
+    onSeek(Math.min(duration, currentTime + 5));
   };
 
   const handleEject = () => {
-    stop();
+    onStop();
     playSfx(SFX.EJECT);
     setTimeout(() => {
        onEject();
@@ -262,7 +172,7 @@ const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject }) => {
 
   // Scrubbing Logic
   const handleProgressPointerDown = (e: React.PointerEvent) => {
-    if (!currentTape || !audioRef.current) return;
+    if (!currentTape || duration <= 0) return;
     e.stopPropagation();
     e.preventDefault();
     isScrubbingRef.current = true;
@@ -279,10 +189,7 @@ const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject }) => {
     const relativeX = e.clientX - rect.left;
     const percent = Math.max(0, Math.min(1, relativeX / rect.width));
     const newTime = percent * duration;
-    setCurrentTime(newTime);
-    if (audioRef.current) {
-      audioRef.current.currentTime = newTime;
-    }
+    onSeek(newTime);
   };
 
   const handleProgressPointerUp = (e: React.PointerEvent) => {
@@ -550,7 +457,10 @@ const Walkman: React.FC<WalkmanProps> = ({ currentTape, onEject }) => {
             <line x1="0" y1="-2" x2="0" y2="2" stroke="#111" strokeWidth="0.5" transform="rotate(135)" />
         </g>
         
-        <rect x="40" y="12" width="40" height="6" fill="#f97316" rx="1" stroke="#c2410c" strokeWidth="0.5" />
+         {/* EJECT BUTTON (Orange bar on top) */}
+         <g className="cursor-pointer" onPointerDown={handleEject} style={{ touchAction: 'manipulation' }}>
+             <rect x="40" y="12" width="40" height="6" fill="#f97316" rx="1" stroke="#c2410c" strokeWidth="0.5" className="active:brightness-90 hover:brightness-110 transition-all" />
+         </g>
 
       </svg>
     </div>
