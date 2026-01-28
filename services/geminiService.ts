@@ -1,6 +1,7 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { Song } from "../types";
+import { processMusicData, removeDuplicates, ITunesTrack } from "./musicMiddleware";
 
 // Helper to convert HSL to Hex
 const hslToHex = (h: number, s: number, l: number) => {
@@ -14,8 +15,75 @@ const hslToHex = (h: number, s: number, l: number) => {
   return `#${f(0)}${f(8)}${f(4)}`;
 };
 
+// Pre-defined palette of vibrant cassette body colors with good contrast
+const CASSETTE_COLORS = [
+  '#e63946', // Red
+  '#f77f00', // Orange
+  '#fcbf49', // Yellow
+  '#06a77d', // Teal
+  '#118ab2', // Blue
+  '#7209b7', // Purple
+  '#b5179e', // Pink
+  '#560bad', // Deep Purple
+  '#3a0ca3', // Indigo
+  '#4361ee', // Bright Blue
+  '#4cc9f0', // Sky Blue
+  '#06ffa5', // Mint
+  '#06d6a0', // Green
+  '#06ffa5', // Aqua
+  '#ffbe0b', // Amber
+  '#fb5607', // Red Orange
+  '#ff006e', // Hot Pink
+  '#8338ec', // Violet
+  '#3a86ff', // Azure
+  '#06ffa5', // Emerald
+  '#ffd60a', // Gold
+  '#ff006e', // Magenta
+  '#8338ec', // Purple
+  '#3a86ff', // Blue
+];
+
+// Pre-defined palette of vinyl record colors (darker, more muted for vinyl aesthetic)
+const VINYL_COLORS = [
+  '#1a1a2e', // Deep Navy
+  '#16213e', // Dark Blue
+  '#0f3460', // Midnight Blue
+  '#533483', // Deep Purple
+  '#4a148c', // Dark Purple
+  '#6a1b9a', // Purple
+  '#880e4f', // Deep Pink
+  '#b71c1c', // Dark Red
+  '#c62828', // Red
+  '#d84315', // Deep Orange
+  '#e65100', // Orange
+  '#33691e', // Dark Green
+  '#1b5e20', // Forest Green
+  '#004d40', // Dark Teal
+  '#006064', // Teal
+  '#01579b', // Dark Blue
+];
+
+// Helper to calculate relative luminance for contrast checking
+const getLuminance = (hex: string): number => {
+  const rgb = hex.match(/[A-Za-z0-9]{2}/g)?.map(v => parseInt(v, 16)) || [0, 0, 0];
+  const [r, g, b] = rgb.map(val => {
+    val = val / 255;
+    return val <= 0.03928 ? val / 12.92 : Math.pow((val + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+// Helper to calculate contrast ratio between two colors
+const getContrastRatio = (color1: string, color2: string): number => {
+  const lum1 = getLuminance(color1);
+  const lum2 = getLuminance(color2);
+  const lighter = Math.max(lum1, lum2);
+  const darker = Math.min(lum1, lum2);
+  return (lighter + 0.05) / (darker + 0.05);
+};
+
 // Helper to generate consistent, aesthetically pleasing colors from a string
-const stringToColor = (str: string, isLabel: boolean = false) => {
+const stringToColor = (str: string, isLabel: boolean = false, isVinyl: boolean = false) => {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);
@@ -37,28 +105,61 @@ const stringToColor = (str: string, isLabel: boolean = false) => {
       return paperTones[Math.abs(hash) % paperTones.length];
   }
 
-  // Generate HSL for vibrant plastic body
-  const h = Math.abs(hash) % 360;
-  
-  // Saturation: Keep high (60-90%) for that "plastic" look
-  const s = 60 + (Math.abs(hash) % 31); 
-  
-  // Lightness: Keep mid-range (25-55%) 
-  // This avoids colors being too black (lost on desk) or too white (looks like the label)
-  const l = 25 + (Math.abs(hash) % 31); 
+  // Use pre-defined palette for vinyl records
+  if (isVinyl) {
+    return VINYL_COLORS[Math.abs(hash) % VINYL_COLORS.length];
+  }
 
-  return hslToHex(h, s, l);
-};
-
-// Fisher-Yates Shuffle to randomize array
-const shuffleArray = <T>(array: T[]): T[] => {
-    const newArr = [...array];
-    for (let i = newArr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+  // Use pre-defined palette for cassette bodies, ensuring good contrast
+  const baseColor = CASSETTE_COLORS[Math.abs(hash) % CASSETTE_COLORS.length];
+  
+  // Ensure minimum contrast with common backgrounds (dark backgrounds)
+  // Target: at least 3:1 contrast ratio for readability
+  const darkBackground = '#1a1a1a'; // Typical dark background
+  let contrast = getContrastRatio(baseColor, darkBackground);
+  
+  // If contrast is too low, adjust lightness
+  if (contrast < 2.5) {
+    // Convert to HSL, adjust lightness, convert back
+    const rgb = baseColor.match(/[A-Za-z0-9]{2}/g)?.map(v => parseInt(v, 16)) || [0, 0, 0];
+    const [r, g, b] = rgb.map(v => v / 255);
+    
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h = 0, s = 0, l = (max + min) / 2;
+    
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      
+      if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+      else if (max === g) h = ((b - r) / d + 2) / 6;
+      else h = ((r - g) / d + 4) / 6;
     }
-    return newArr;
+    
+    // Increase lightness to improve contrast (target 40-60% for good visibility)
+    l = Math.max(0.4, Math.min(0.6, l + 0.15));
+    
+    // Convert back to hex
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs((h * 6) % 2 - 1));
+    const m = l - c / 2;
+    
+    let r2, g2, b2;
+    if (h < 1/6) [r2, g2, b2] = [c, x, 0];
+    else if (h < 2/6) [r2, g2, b2] = [x, c, 0];
+    else if (h < 3/6) [r2, g2, b2] = [0, c, x];
+    else if (h < 4/6) [r2, g2, b2] = [0, x, c];
+    else if (h < 5/6) [r2, g2, b2] = [x, 0, c];
+    else [r2, g2, b2] = [c, 0, x];
+    
+    const toHex = (n: number) => Math.round((n + m) * 255).toString(16).padStart(2, '0');
+    return `#${toHex(r2)}${toHex(g2)}${toHex(b2)}`;
+  }
+  
+  return baseColor;
 };
+
 
 export const searchMusic = async (query: string): Promise<Song[]> => {
   try {
@@ -87,8 +188,14 @@ export const searchMusic = async (query: string): Promise<Song[]> => {
         return [];
     }
 
-    // 3. Filter out tracks without previews
-    const validResults = data.results.filter((track: any) => track.previewUrl && track.trackName && track.artistName);
+    // 3. Use middleware to process, sort, and select best tracks
+    const rawTracks: ITunesTrack[] = data.results;
+    const uniqueTracks = removeDuplicates(rawTracks);
+    const selectedTracks = processMusicData(uniqueTracks, query, {
+        maxResults: 6,
+        prioritizePopularity: true,
+        ensureGenreDiversity: true,
+    });
 
     // 4. Helper to clean and format titles
     const cleanTitle = (title: string): string => {
@@ -167,27 +274,14 @@ export const searchMusic = async (query: string): Promise<Song[]> => {
         return cleaned || title; // Fallback to original if cleaning results in empty
     };
 
-    // 5. Remove duplicate titles (case-insensitive) and clean them
-    const seenTitles = new Set<string>();
-    const uniqueResults: any[] = [];
-    
-    for (const track of validResults) {
-        const cleanedTitle = cleanTitle(track.trackName).toLowerCase();
-        if (!seenTitles.has(cleanedTitle)) {
-            seenTitles.add(cleanedTitle);
-            uniqueResults.push(track);
-        }
-    }
-
-    // 6. Shuffle the unique results to simulate "random songs" from the query pool
-    const shuffledResults = shuffleArray(uniqueResults);
-
-    // 7. Take the top 6 after shuffling and clean titles
-    const songs: Song[] = shuffledResults.slice(0, 6).map((track: any, index: number) => {
-        // Mix genre and artist for unique body color
-        const baseColor = stringToColor(track.primaryGenreName + track.artistName + "v2"); 
+    // 4. Convert selected tracks to Song format with cleaned titles
+    const songs: Song[] = selectedTracks.map((track: ITunesTrack, index: number) => {
+        // Mix genre and artist for unique body color (cassette body)
+        const baseColor = stringToColor(track.primaryGenreName + track.artistName + "v2", false, false); 
         // Use track name for label tint
-        const accentColor = stringToColor(track.trackName, true); 
+        const accentColor = stringToColor(track.trackName, true, false); 
+        // For vinyl, use darker palette
+        const vinylColor = stringToColor(track.primaryGenreName + track.artistName + "vinyl", false, true);
         
         const cleanedTitle = cleanTitle(track.trackName);
         const cleanedArtist = track.artistName.trim();
@@ -196,8 +290,9 @@ export const searchMusic = async (query: string): Promise<Song[]> => {
             id: `itunes-${track.trackId}-${Math.random().toString(36).substr(2, 5)}`, // Append random string to ID to ensure uniqueness on repeated searches
             title: cleanedTitle,
             artist: cleanedArtist,
-            color: baseColor,
-            accentColor: accentColor,
+            color: baseColor, // Cassette body color
+            accentColor: accentColor, // Label color
+            vinylColor: vinylColor, // Vinyl-specific color
             duration: "0:30",
             audioUrl: track.previewUrl
         };

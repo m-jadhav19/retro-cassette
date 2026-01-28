@@ -5,6 +5,7 @@ export interface Song {
   artist: string;
   color: string; // Hex code for the cassette body
   accentColor: string; // Hex code for label/details
+  vinylColor?: string; // Hex code for vinyl records (darker palette)
   mood?: string;
   duration: string;
   audioUrl?: string; // URL to the preview track

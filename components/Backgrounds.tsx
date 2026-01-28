@@ -221,3 +221,72 @@ export const TurntableBackground: React.FC = () => (
     </div>
   </div>
 );
+
+export const CDPlayerBackground: React.FC = () => (
+    <div className="absolute inset-0 w-full h-full bg-[#f0f9ff] overflow-hidden select-none">
+        {/* Y2K Tech Desk Base */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,_#e0f2fe_0%,_#ffffff_100%)]"></div>
+        
+        {/* Subtle Tech Pattern */}
+        <div className="absolute inset-0 opacity-10" style={{
+            backgroundImage: `radial-gradient(#94a3b8 1px, transparent 1px)`,
+            backgroundSize: '20px 20px'
+        }}></div>
+
+        {/* --- DECORATIONS --- */}
+        <div className="absolute inset-0 pointer-events-none z-1">
+            
+            {/* Stack of Jewel Cases (Bottom Right) */}
+            <div className="absolute bottom-10 right-10 flex flex-col -space-y-6 transform rotate-6">
+                {[...Array(5)].map((_, i) => (
+                    <div key={i} className="w-32 h-28 bg-white/20 border border-white/40 shadow-lg rounded-sm backdrop-blur-sm relative transform hover:translate-x-4 transition-transform">
+                        <div className="absolute inset-0.5 border border-white/20"></div>
+                        <div className="absolute left-0 w-2 h-full bg-black/5"></div> {/* Spine */}
+                        {i === 4 && <div className="absolute inset-0 flex items-center justify-center text-[10px] text-gray-400 font-mono rotate-90 opacity-50">MIX 2003</div>}
+                    </div>
+                ))}
+            </div>
+
+            {/* Sharpie Marker */}
+            <div className="absolute top-[20%] right-[15%] w-48 h-4 bg-black rounded-full shadow-xl transform rotate-45 flex items-center">
+                <div className="w-12 h-4 bg-gray-300 rounded-l-full"></div> {/* Cap */}
+                <div className="absolute right-0 w-2 h-4 bg-gray-300 rounded-r-full"></div>
+                <div className="text-[8px] text-white ml-14 font-bold tracking-widest">SHARPIE</div>
+            </div>
+
+            {/* Corner of CRT Monitor (Top Left) */}
+            <div className="absolute -top-10 -left-10 w-64 h-64 bg-[#e5e7eb] rounded-3xl shadow-2xl border-b-8 border-r-8 border-gray-300 transform rotate-3">
+                 <div className="absolute bottom-10 right-10 w-40 h-40 bg-[#1e293b] rounded-2xl shadow-inner border-4 border-gray-400 overflow-hidden">
+                     {/* Screen Glare */}
+                     <div className="absolute -top-20 -left-20 w-80 h-10 bg-white opacity-10 transform rotate-45"></div>
+                     <div className="absolute bottom-4 right-4 w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_5px_#22c55e]"></div>
+                     {/* Winamp-ish visualizer hint */}
+                     <div className="absolute bottom-0 left-0 w-full h-12 flex items-end gap-1 px-2 pb-2 opacity-50">
+                        {[...Array(10)].map((_, i) => (
+                            <div key={i} className="w-full bg-green-400" style={{ height: `${Math.random() * 100}%` }}></div>
+                        ))}
+                     </div>
+                 </div>
+            </div>
+
+            {/* Tangled Earbuds Cable */}
+            <svg className="absolute bottom-[20%] left-[30%] w-64 h-64 pointer-events-none opacity-60">
+                 <path d="M 0,100 C 50,150 100,50 150,100 S 250,150 300,50" fill="none" stroke="#333" strokeWidth="2" />
+                 <path d="M 150,100 C 120,80 180,120 200,80" fill="none" stroke="#333" strokeWidth="2" />
+                 <circle cx="300" cy="50" r="4" fill="#eee" stroke="#333" /> {/* Earbud */}
+                 <circle cx="200" cy="80" r="4" fill="#eee" stroke="#333" /> {/* Earbud */}
+            </svg>
+            
+            {/* Gaming Mag Snippet */}
+            <div className="absolute top-[40%] left-[10%] w-32 h-40 bg-white shadow-md transform -rotate-12 p-2 border border-gray-200 overflow-hidden">
+                <div className="w-full h-full bg-gray-100 flex flex-col">
+                    <div className="h-24 bg-red-600 w-full mb-1"></div>
+                    <div className="h-2 bg-black w-3/4 mb-1"></div>
+                    <div className="h-2 bg-black w-full mb-1"></div>
+                    <div className="h-2 bg-black w-1/2"></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+);
