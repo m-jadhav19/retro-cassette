@@ -1,4 +1,4 @@
-n# Retro Cassette
+# Retro Cassette
 
 A nostalgic music discovery app that brings back the magic of 2000s mixtapes. Search for music using AI, generate cassette tapes, and play them in your Walkman.
 
@@ -14,7 +14,7 @@ A nostalgic music discovery app that brings back the magic of 2000s mixtapes. Se
    GEMINI_API_KEY=your_api_key_here
    ```
 
-3. Run the development server:
+3. Run the development server (http://localhost:5173):
    ```bash
    npm run dev
    ```

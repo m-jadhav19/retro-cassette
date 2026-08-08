@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef } from 'react';
 import { Song, PlayerStatus } from '../types';
 import CompactDisc from './CompactDisc';
 
@@ -9,6 +9,7 @@ interface SharedAudio {
   volume: number;
   setVolume: (vol: number) => void;
   onPlay: () => void;
+  onPause: () => void;
   onStop: () => void;
   onSeek: (time: number) => void;
   isScrubbingRef: React.MutableRefObject<boolean>;
@@ -21,9 +22,8 @@ interface CDPlayerProps {
 }
 
 const CDPlayer: React.FC<CDPlayerProps> = ({ currentDisc, onEject, sharedAudio }) => {
-  const { status, currentTime, duration, volume, setVolume, onPlay, onStop, onSeek, isScrubbingRef } = sharedAudio;
+  const { status, currentTime, duration, volume, setVolume, onPlay, onPause, onStop, onSeek, isScrubbingRef } = sharedAudio;
   
-  const [isLidOpen, setIsLidOpen] = useState(false);
   const volumeTrackRef = useRef<SVGRectElement>(null);
   const isVolumeDraggingRef = useRef(false);
 
@@ -37,12 +37,18 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ currentDisc, onEject, sharedAudio }
 
   // Handle Play/Pause
   const handlePlayPause = () => {
+    if (status === PlayerStatus.LOADING) return;
     if (status === PlayerStatus.PLAYING) {
-      onStop();
-    } else {
-      if (currentDisc) onPlay();
+      onPause();
+    } else if (currentDisc) {
+      onPlay();
     }
   };
+
+  const isLoading = status === PlayerStatus.LOADING;
+
+  const truncate = (str: string, max: number) =>
+    str.length > max ? str.slice(0, max - 1) + '…' : str;
 
   // Handle Volume Drag
   const handleVolumePointerDown = (e: React.PointerEvent) => {
@@ -83,6 +89,11 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ currentDisc, onEject, sharedAudio }
 
   const handleSkipBack = () => {
       onSeek(Math.max(0, currentTime - 10));
+  };
+
+  const handleEjectClick = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    onEject();
   };
 
   return (
@@ -163,28 +174,39 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ currentDisc, onEject, sharedAudio }
 
         {/* --- LID AREA --- */}
         <g transform="translate(0, -10)">
-            <circle cx="250" cy="230" r="160" fill="#18181b" stroke="#27272a" strokeWidth="6" />
-            {/* Inner Ring Detail */}
-            <circle cx="250" cy="230" r="156" fill="none" stroke="#3f3f46" strokeWidth="1" />
+            <circle cx="250" cy="230" r="160" fill="#0c0c0e" stroke="#27272a" strokeWidth="5" />
+            <circle cx="250" cy="230" r="156" fill="none" stroke="#3f3f46" strokeWidth="0.5" />
+            {/* Platter mat ring */}
+            <circle cx="250" cy="230" r="158" fill="none" stroke="#1a1a1a" strokeWidth="3" />
 
-            {/* Render CD inside */}
             {currentDisc && (
                 <foreignObject x="90" y="70" width="320" height="320">
-                    <div className={`w-full h-full flex items-center justify-center transition-opacity duration-500`}>
+                    <div className="w-full h-full flex items-center justify-center relative">
                         <CompactDisc 
                             song={currentDisc} 
                             isDraggable={false} 
                             isSpinning={status === PlayerStatus.PLAYING}
                             className="w-[300px] h-[300px]" 
                         />
+                        {isLoading && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full">
+                            <div className="w-10 h-10 border-2 border-yellow-400 border-t-transparent rounded-full animate-loading-spin" />
+                          </div>
+                        )}
                     </div>
                 </foreignObject>
             )}
 
-            {/* Glass Window Reflection */}
+            {/* Glass Window */}
             <circle cx="250" cy="230" r="160" fill="url(#lid-gradient)" pointerEvents="none" />
-            {/* Specular Highlight on Glass */}
-            <path d="M 150,150 Q 250,100 350,150 Q 300,180 200,180 Q 150,150 150,150" fill="white" opacity="0.1" pointerEvents="none" />
+            <ellipse cx="200" cy="170" rx="80" ry="40" fill="white" opacity="0.08" transform="rotate(-20 200 170)" pointerEvents="none" />
+            <path d="M 150,150 Q 250,100 350,150 Q 300,180 200,180 Q 150,150 150,150" fill="white" opacity="0.06" pointerEvents="none" />
+
+            {/* Playing LED */}
+            <circle cx="250" cy="75" r="3" fill={isLoading ? '#facc15' : status === PlayerStatus.PLAYING ? '#22c55e' : '#333'}
+              style={{ filter: isLoading ? 'drop-shadow(0 0 6px #facc15)' : status === PlayerStatus.PLAYING ? 'drop-shadow(0 0 4px #22c55e)' : 'none' }}>
+              {(isLoading || status === PlayerStatus.PLAYING) && <animate attributeName="opacity" values="0.4;1;0.4" dur="0.8s" repeatCount="indefinite" />}
+            </circle>
         </g>
 
         {/* Hinge Detail */}
@@ -198,16 +220,21 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ currentDisc, onEject, sharedAudio }
             <path d="M 80,330 Q 250,480 420,330 L 420,360 Q 250,510 80,360 Z" fill="#d1d5db" opacity="0.5" />
             
             {/* LCD Screen - Recessed */}
-            <g transform="translate(190, 390)">
-                <rect x="0" y="0" width="120" height="40" rx="4" fill="#1f2937" stroke="#4b5563" strokeWidth="2" filter="url(#inset-shadow)" />
-                <rect x="5" y="5" width="110" height="30" rx="2" fill="#86efac" opacity="0.1" />
-                {/* Text */}
-                <text x="60" y="26" textAnchor="middle" fontFamily="monospace" fontSize="20" fill="#86efac" fontWeight="bold" filter="url(#lcd-glow)" letterSpacing="2">
-                    {status === PlayerStatus.PLAYING ? formatTime(currentTime) : "--:--"}
+            <g transform="translate(175, 388)">
+                <rect x="0" y="0" width="150" height="48" rx="4" fill="#111827" stroke="#374151" strokeWidth="2" filter="url(#inset-shadow)" />
+                <rect x="4" y="4" width="142" height="40" rx="2" fill="#052e16" opacity="0.5" />
+                <rect x="4" y="4" width="142" height="40" rx="2" fill="#86efac" opacity="0.05" className="animate-lcd" />
+                <text x="75" y="24" textAnchor="middle" fontFamily="monospace" fontSize={isLoading ? 14 : 22} fill={isLoading ? '#facc15' : '#4ade80'} fontWeight="bold" filter="url(#lcd-glow)" letterSpacing={isLoading ? 2 : 3} className={isLoading ? 'animate-loading-pulse' : 'animate-lcd'}>
+                    {isLoading ? 'LOADING' : (status === PlayerStatus.PLAYING || status === PlayerStatus.PAUSED) ? formatTime(currentTime) : '--:--'}
                 </text>
-                <text x="60" y="38" textAnchor="middle" fontFamily="sans-serif" fontSize="6" fill="#86efac" opacity="0.7">
-                    {currentDisc ? "TRACK 01" : "NO DISC"}
+                <text x="75" y="38" textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#86efac" opacity="0.8">
+                    {isLoading ? 'READING DISC...' : currentDisc ? truncate(currentDisc.title, 22) : 'NO DISC'}
                 </text>
+                {currentDisc && (
+                  <text x="75" y="46" textAnchor="middle" fontFamily="monospace" fontSize="5" fill="#86efac" opacity="0.5">
+                    {truncate(currentDisc.artist, 28)}
+                  </text>
+                )}
             </g>
 
             {/* BUTTONS - 3D Pill Shape */}
@@ -215,14 +242,15 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ currentDisc, onEject, sharedAudio }
                 
                 {/* Play/Pause Button - Central */}
                 <g 
-                    className="cursor-pointer hover:brightness-110 active:brightness-90 transition-all"
-                    onPointerDown={handlePlayPause}
+                    className={isLoading ? 'opacity-40 pointer-events-none' : 'cursor-pointer hover:brightness-110 active:brightness-90 transition-all'}
+                    onPointerDown={isLoading ? undefined : handlePlayPause}
                     transform="translate(400, 360)"
                 >
                     <circle r="22" fill="url(#button-gradient)" stroke="#9ca3af" strokeWidth="1" filter="url(#inset-shadow)" />
                     <circle r="18" fill="#e5e7eb" opacity="0.5" />
-                    {/* Play Icon */}
-                    {status === PlayerStatus.PLAYING ? (
+                    {isLoading ? (
+                      <circle r="8" fill="none" stroke="#6b7280" strokeWidth="2" strokeDasharray="10 16" className="animate-loading-spin" style={{ transformOrigin: '0px 0px' }} />
+                    ) : status === PlayerStatus.PLAYING ? (
                          <g transform="translate(-6, -6)">
                              <rect width="4" height="12" fill="#374151" />
                              <rect x="8" width="4" height="12" fill="#374151" />
@@ -311,11 +339,16 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ currentDisc, onEject, sharedAudio }
                 d="M 0,0 L 20,0 L 25,10 L 20,20 L 0,20 Z" 
                 fill="#f97316" stroke="#c2410c" strokeWidth="1"
                 className="cursor-pointer hover:brightness-110 active:translate-x-1 transition-transform"
-                onPointerDown={onEject}
+                onPointerDown={handleEjectClick}
             />
             <path d="M 12,6 L 18,10 L 12,14" stroke="white" strokeWidth="2" fill="none" pointerEvents="none" />
              <text x="5" y="-5" fontSize="8" fill="#4b5563" fontWeight="bold">OPEN</text>
         </g>
+
+        {/* Rubber feet */}
+        {[[80, 460], [420, 460], [250, 490]].map(([x, y], i) => (
+          <ellipse key={i} cx={x} cy={y} rx="12" ry="5" fill="#1f2937" opacity="0.6" />
+        ))}
 
         {/* Branding */}
         <g transform="translate(250, 470)">

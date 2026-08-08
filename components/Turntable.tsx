@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Song, PlayerStatus } from '../types';
-import { SFX } from '../constants';
 import Vinyl from './Vinyl';
 
 interface SharedAudio {
@@ -10,6 +9,7 @@ interface SharedAudio {
   volume: number;
   setVolume: (vol: number) => void;
   onPlay: () => void;
+  onPause: () => void;
   onStop: () => void;
   onSeek: (time: number) => void;
   isScrubbingRef: React.MutableRefObject<boolean>;
@@ -22,19 +22,12 @@ interface TurntableProps {
 }
 
 const Turntable: React.FC<TurntableProps> = ({ currentRecord, onEject, sharedAudio }) => {
-  const { status, currentTime, duration, volume, setVolume, onPlay, onStop, onSeek } = sharedAudio;
+  const { status, currentTime, duration, volume, setVolume, onPlay, onPause, onStop, onSeek } = sharedAudio;
   const [armAngle, setArmAngle] = useState(0); 
 
   const volumeKnobRef = useRef<SVGCircleElement>(null);
   const isVolumeDraggingRef = useRef(false);
   const [strobePhase, setStrobePhase] = useState(0);
-
-  // SFX Helper
-  const playSfx = (url: string) => {
-    const audio = new Audio(url);
-    audio.volume = 0.4;
-    audio.play().catch(() => {});
-  };
 
   // Strobe Animation
   useEffect(() => {
@@ -55,8 +48,9 @@ const Turntable: React.FC<TurntableProps> = ({ currentRecord, onEject, sharedAud
           const endAngle = 35;
           setArmAngle(startAngle + (progress * (endAngle - startAngle)));
       } else if (status === PlayerStatus.STOPPED || status === PlayerStatus.IDLE) {
-          setArmAngle(0); 
+          setArmAngle(0);
       }
+      // PAUSED: arm stays in place
   }, [currentTime, duration, status]);
 
     // Global volume drag handlers
@@ -89,19 +83,19 @@ const Turntable: React.FC<TurntableProps> = ({ currentRecord, onEject, sharedAud
 
   const handlePlayStopToggle = (e: React.PointerEvent) => {
       e.stopPropagation();
-      // Use a click sound for the lever
-      playSfx(SFX.INSERT); 
+      if (status === PlayerStatus.LOADING) return;
       if (status === PlayerStatus.PLAYING) {
-          onStop();
+          onPause();
       } else if (currentRecord) {
           onPlay();
       }
   };
 
+  const isLoading = status === PlayerStatus.LOADING;
+
   const handleEject = (e: React.PointerEvent) => {
     e.stopPropagation();
     onStop();
-    playSfx(SFX.EJECT);
     setTimeout(() => {
        onEject();
     }, 300);
@@ -148,9 +142,10 @@ const Turntable: React.FC<TurntableProps> = ({ currentRecord, onEject, sharedAud
         <rect x="25" y="25" width="550" height="450" rx="10" fill="none" stroke="#a16207" strokeWidth="2" opacity="0.5" />
 
         {/* Platter Area */}
-        <circle cx="250" cy="250" r="210" fill="#111" stroke="#000" strokeWidth="2" />
-        {/* Platter Ring with Strobe Dots */}
-        <circle cx="250" cy="250" r="205" fill="none" stroke="#333" strokeWidth="10" />
+        <circle cx="250" cy="250" r="210" fill="#0a0a0a" stroke="#000" strokeWidth="2" />
+        <circle cx="250" cy="250" r="205" fill="none" stroke="#222" strokeWidth="8" />
+        {/* Felt mat */}
+        <circle cx="250" cy="250" r="198" fill="#1a1510" opacity="0.9" />
         
         {/* Strobe Dots Animation */}
         <g transform="translate(250, 250)">
@@ -165,9 +160,30 @@ const Turntable: React.FC<TurntableProps> = ({ currentRecord, onEject, sharedAud
         </g>
         
         {/* Inner Platter */}
-        <circle cx="250" cy="250" r="195" fill="#1a1a1a" />
+        <circle cx="250" cy="250" r="195" fill="#141414" />
         
-        {/* The Record - Larger Size */}
+        {/* Now Playing display */}
+        {currentRecord && (
+          <g transform="translate(250, 30)">
+            <rect x="-90" y="-12" width="180" height="28" rx="3" fill="#111" stroke="#a16207" strokeWidth="1" opacity="0.9" />
+            {isLoading ? (
+              <text x="0" y="5" textAnchor="middle" fill="#facc15" fontSize="9" fontFamily="monospace" fontWeight="bold" letterSpacing="2" className="animate-loading-pulse">
+                LOADING...
+              </text>
+            ) : (
+              <>
+                <text x="0" y="2" textAnchor="middle" fill="#fef08a" fontSize="9" fontFamily="monospace" fontWeight="bold" letterSpacing="1">
+                  {currentRecord.title.length > 24 ? currentRecord.title.slice(0, 23) + '…' : currentRecord.title}
+                </text>
+                <text x="0" y="12" textAnchor="middle" fill="#a16207" fontSize="6" fontFamily="monospace" opacity="0.8">
+                  {currentRecord.artist}
+                </text>
+              </>
+            )}
+          </g>
+        )}
+
+        {/* The Record */}
         {currentRecord && (
              <foreignObject x="55" y="55" width="390" height="390">
                  <Vinyl 
@@ -219,7 +235,7 @@ const Turntable: React.FC<TurntableProps> = ({ currentRecord, onEject, sharedAud
         </g>
         
         {/* Vintage Start/Stop Lever */}
-        <g transform="translate(500, 320)" className="cursor-pointer" onPointerDown={handlePlayStopToggle}>
+        <g transform="translate(500, 320)" className={isLoading ? 'opacity-40 pointer-events-none' : 'cursor-pointer'} onPointerDown={isLoading ? undefined : handlePlayStopToggle}>
             <rect x="-35" y="-35" width="70" height="70" rx="35" fill="#1a1a1a" stroke="#333" strokeWidth="2" />
             <text x="0" y="-20" textAnchor="middle" fill="#a16207" fontSize="8" fontWeight="bold" letterSpacing="2">POWER</text>
             

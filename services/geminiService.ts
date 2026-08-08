@@ -1,5 +1,5 @@
-
 import { GoogleGenAI } from "@google/genai";
+import { upscaleArtwork } from '../utils/artwork';
 import { Song } from "../types";
 import { processMusicData, removeDuplicates, ITunesTrack } from "./musicMiddleware";
 
@@ -287,12 +287,13 @@ export const searchMusic = async (query: string): Promise<Song[]> => {
         const cleanedArtist = track.artistName.trim();
 
         return {
-            id: `itunes-${track.trackId}-${Math.random().toString(36).substr(2, 5)}`, // Append random string to ID to ensure uniqueness on repeated searches
+            id: `itunes-${track.trackId}-${Math.random().toString(36).substr(2, 5)}`,
             title: cleanedTitle,
             artist: cleanedArtist,
-            color: baseColor, // Cassette body color
-            accentColor: accentColor, // Label color
-            vinylColor: vinylColor, // Vinyl-specific color
+            color: baseColor,
+            accentColor: accentColor,
+            vinylColor: vinylColor,
+            artworkUrl: upscaleArtwork(track.artworkUrl100, 300),
             duration: "0:30",
             audioUrl: track.previewUrl
         };

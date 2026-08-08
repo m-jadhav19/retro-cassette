@@ -6,6 +6,7 @@ export interface Song {
   color: string; // Hex code for the cassette body
   accentColor: string; // Hex code for label/details
   vinylColor?: string; // Hex code for vinyl records (darker palette)
+  artworkUrl?: string; // Album cover image URL
   mood?: string;
   duration: string;
   audioUrl?: string; // URL to the preview track
@@ -13,6 +14,10 @@ export interface Song {
   x?: number;
   y?: number;
   rotation?: number;
+}
+
+export interface HistoryEntry extends Song {
+  playedAt: number;
 }
 
 export interface PlaybackState {
@@ -23,6 +28,7 @@ export interface PlaybackState {
 
 export enum PlayerStatus {
   IDLE = 'IDLE',
+  LOADING = 'LOADING',
   PLAYING = 'PLAYING',
   PAUSED = 'PAUSED',
   STOPPED = 'STOPPED'

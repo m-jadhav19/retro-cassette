@@ -6,9 +6,9 @@ export const WalkmanBackground: React.FC = () => (
     <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_#1e1b4b_0%,_#000000_100%)]"></div>
     
     {/* Neon Glows */}
-    <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-600/20 blur-[100px] rounded-full pointer-events-none mix-blend-screen"></div>
-    <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-blue-600/20 blur-[100px] rounded-full pointer-events-none mix-blend-screen"></div>
-    <div className="absolute top-[40%] left-[60%] w-[30%] h-[30%] bg-pink-600/10 blur-[80px] rounded-full pointer-events-none mix-blend-screen"></div>
+    <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-600/20 blur-[100px] rounded-full pointer-events-none mix-blend-screen animate-[ambient-pulse_6s_ease-in-out_infinite]"></div>
+    <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-blue-600/20 blur-[100px] rounded-full pointer-events-none mix-blend-screen animate-[ambient-pulse_8s_ease-in-out_infinite_1s]"></div>
+    <div className="absolute top-[40%] left-[60%] w-[30%] h-[30%] bg-pink-600/10 blur-[80px] rounded-full pointer-events-none mix-blend-screen animate-[ambient-pulse_7s_ease-in-out_infinite_2s]"></div>
 
     {/* Grid Overlay */}
     <div 

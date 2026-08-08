@@ -1,14 +1,32 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { searchMusic } from './services/geminiService';
-import { Song, PlayerStatus } from './types';
-import { DEFAULT_SONGS, SFX } from './constants';
+import { Song, PlayerStatus, HistoryEntry } from './types';
+import { DEFAULT_SONGS } from './constants';
+import { playSfx, unlockAudio } from './services/sfxService';
 import Cassette from './components/Cassette';
 import Walkman from './components/Walkman';
 import Turntable from './components/Turntable';
 import CDPlayer from './components/CDPlayer';
 import Vinyl from './components/Vinyl';
 import CompactDisc from './components/CompactDisc';
+import HistoryStacker from './components/HistoryStacker';
+import DeskLamp from './components/DeskLamp';
+import AnalogImperfections from './components/AnalogImperfections';
 import { WalkmanBackground, TurntableBackground, CDPlayerBackground } from './components/Backgrounds';
+
+const HISTORY_STORAGE_KEY = 'retro-cassette-play-history';
+const MAX_HISTORY = 30;
+
+const loadHistory = (): HistoryEntry[] => {
+  try {
+    const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as HistoryEntry[];
+    return Array.isArray(parsed) ? parsed.slice(0, MAX_HISTORY) : [];
+  } catch {
+    return [];
+  }
+};
 
 interface DragState {
   id: string;
@@ -24,15 +42,18 @@ const NotebookUI: React.FC<{
   handleSearch: (e: React.FormEvent) => void;
   handleSurpriseMe: () => void;
   isLoading: boolean;
+  searchMessage: string | null;
   mode: PlayerMode;
-}> = ({ query, setQuery, handleSearch, handleSurpriseMe, isLoading, mode }) => {
+}> = ({ query, setQuery, handleSearch, handleSurpriseMe, isLoading, searchMessage, mode }) => {
   
   const isWalkman = mode === 'walkman';
   const isTurntable = mode === 'turntable';
   const isCDPlayer = mode === 'cd_player';
 
   return (
-    <div className={`absolute top-[5%] right-[8%] w-[340px] z-40 transform rotate-2 hover:rotate-0 transition-transform duration-300 origin-top-right`}>
+    <div className={`absolute z-40 transform transition-all duration-500 ease-out origin-top-right
+      ${isWalkman ? 'top-auto bottom-[6%] right-[4%] w-[260px] opacity-55 hover:opacity-90 scale-90 hover:scale-95 rotate-1' : 'top-[5%] right-[8%] w-[340px] rotate-2 hover:rotate-0'}
+    `}>
       {/* Notebook Spiral Binding (Only for Walkman) */}
       {isWalkman && (
         <div className="absolute left-0 top-0 w-full h-8 z-20 flex justify-evenly">
@@ -194,6 +215,14 @@ const NotebookUI: React.FC<{
           <div className="mt-auto mb-4 ml-6 opacity-50 text-[10px] font-mono text-gray-400">
             {isWalkman ? "Assignment done by: @mandar" : isTurntable ? "Est. 2024" : "v2.0.03 // SYSTEM READY"}
           </div>
+
+          {searchMessage && (
+            <div className={`ml-6 mb-3 text-xs font-medium px-2 py-1 rounded ${
+              searchMessage.startsWith('No') ? 'text-red-600 bg-red-50' : 'text-green-700 bg-green-50'
+            }`}>
+              {searchMessage}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -204,7 +233,10 @@ const NotebookUI: React.FC<{
 const App: React.FC = () => {
   const [query, setQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [searchMessage, setSearchMessage] = useState<string | null>(null);
   const [playerMode, setPlayerMode] = useState<PlayerMode>('walkman');
+  const [playHistory, setPlayHistory] = useState<HistoryEntry[]>(loadHistory);
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
 
   // Initialize library with random positions
   const [library, setLibrary] = useState<Song[]>(() => {
@@ -232,23 +264,99 @@ const App: React.FC = () => {
   const [audioDuration, setAudioDuration] = useState(0);
   const [audioVolume, setAudioVolume] = useState(0.75);
   const isScrubbingRef = useRef(false);
+  const loadIdRef = useRef(0);
 
   // Player Position State
   const [playerPosition, setPlayerPosition] = useState({ x: 600, y: 200, rotation: -2 });
   const [isPlayerDragging, setIsPlayerDragging] = useState(false);
   const [playerDragOffset, setPlayerDragOffset] = useState<{ x: number, y: number } | null>(null);
+  const [cassetteSide, setCassetteSide] = useState<'A' | 'B'>('A');
 
   const playerRef = useRef<HTMLDivElement>(null);
 
-  const playSound = (type: keyof typeof SFX) => {
-    const audio = new Audio(SFX[type]);
-    audio.volume = 0.4;
-    audio.play().catch(e => console.log("Audio play error", e));
+  // Persist play history
+  useEffect(() => {
+    try {
+      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(playHistory));
+    } catch {
+      // storage full or unavailable
+    }
+  }, [playHistory]);
+
+  const addToHistory = (song: Song) => {
+    setPlayHistory(prev => {
+      const filtered = prev.filter(h => !(h.title === song.title && h.artist === song.artist));
+      const entry: HistoryEntry = { ...song, playedAt: Date.now() };
+      return [entry, ...filtered].slice(0, MAX_HISTORY);
+    });
   };
 
-  // Initialize/Update Shared Audio when currentMedia changes
+  const handleHistoryReplay = (entry: HistoryEntry) => {
+    const { playedAt: _, ...songData } = entry;
+    const replaySong: Song = {
+      ...songData,
+      id: `${songData.id}-replay-${Date.now()}`,
+      x: 120 + Math.random() * 250,
+      y: 80 + Math.random() * 350,
+      rotation: (Math.random() * 30) - 15,
+    };
+    setLibrary(prev => [...prev, replaySong]);
+    setIsHistoryExpanded(false);
+  };
+
+  const handleClearHistory = () => {
+    setPlayHistory([]);
+    setIsHistoryExpanded(false);
+  };
+
+  const playSound = (type: 'INSERT' | 'EJECT') => {
+    playSfx(type);
+  };
+
+  // Unlock SFX on first interaction (browser autoplay policy)
   useEffect(() => {
-    // Clean up previous audio
+    const unlock = () => unlockAudio();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
+
+  const attachAudioElement = (audio: HTMLAudioElement) => {
+    audio.volume = audioVolume;
+    audio.loop = true;
+
+    audio.onloadedmetadata = () => {
+      setAudioDuration(audio.duration);
+    };
+
+    audio.ontimeupdate = () => {
+      if (!isScrubbingRef.current && sharedAudioRef.current) {
+        setAudioCurrentTime(sharedAudioRef.current.currentTime);
+      }
+    };
+
+    audio.onerror = () => {
+      console.error("Audio playback error", audio.src);
+      setAudioStatus(PlayerStatus.STOPPED);
+    };
+
+    audio.onwaiting = () => {
+      setAudioStatus(prev => prev === PlayerStatus.PLAYING ? PlayerStatus.LOADING : prev);
+    };
+
+    audio.onplaying = () => {
+      setAudioStatus(PlayerStatus.PLAYING);
+    };
+
+    sharedAudioRef.current = audio;
+  };
+
+  const loadAudio = (song: Song, autoPlay = false) => {
+    const loadId = ++loadIdRef.current;
+
     if (sharedAudioRef.current) {
       sharedAudioRef.current.pause();
       sharedAudioRef.current.removeAttribute('src');
@@ -259,49 +367,66 @@ const App: React.FC = () => {
     setAudioCurrentTime(0);
     setAudioDuration(0);
 
-    if (currentMedia?.audioUrl) {
-      const newAudio = new Audio(currentMedia.audioUrl);
-      newAudio.loop = true;
-      newAudio.volume = audioVolume;
-      
-      newAudio.onloadedmetadata = () => {
-        setAudioDuration(newAudio.duration);
-      };
+    if (!song.audioUrl) {
+      setAudioStatus(PlayerStatus.IDLE);
+      return;
+    }
 
-      newAudio.ontimeupdate = () => {
-        if (!isScrubbingRef.current && sharedAudioRef.current) {
-          setAudioCurrentTime(sharedAudioRef.current.currentTime);
-        }
-      };
-      
-      newAudio.onerror = () => {
-        console.error("Audio playback error", currentMedia.audioUrl);
+    setAudioStatus(PlayerStatus.LOADING);
+
+    const newAudio = new Audio(song.audioUrl);
+    attachAudioElement(newAudio);
+
+    const startPlayback = () => {
+      if (loadId !== loadIdRef.current) return;
+      if (!autoPlay) {
         setAudioStatus(PlayerStatus.STOPPED);
-      };
-      
-      sharedAudioRef.current = newAudio;
+        return;
+      }
+      newAudio.play()
+        .then(() => {
+          if (loadId !== loadIdRef.current) return;
+          setAudioStatus(PlayerStatus.PLAYING);
+        })
+        .catch((err) => {
+          if (loadId !== loadIdRef.current) return;
+          console.warn("Autoplay blocked:", err);
+          setAudioStatus(PlayerStatus.STOPPED);
+        });
+    };
+
+    const onError = () => {
+      if (loadId !== loadIdRef.current) return;
       setAudioStatus(PlayerStatus.STOPPED);
+    };
 
-      // Auto-play after a short delay
-      const timeout = setTimeout(() => {
-        if (sharedAudioRef.current) {
-          sharedAudioRef.current.play().then(() => {
-            setAudioStatus(PlayerStatus.PLAYING);
-          }).catch(() => {
-            setAudioStatus(PlayerStatus.STOPPED);
-          });
-        }
-      }, 1000);
-
-      return () => {
-        clearTimeout(timeout);
-        if (sharedAudioRef.current) {
-          sharedAudioRef.current.pause();
-        }
-      };
+    if (newAudio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+      startPlayback();
     } else {
+      newAudio.addEventListener('canplay', startPlayback, { once: true });
+      newAudio.addEventListener('error', onError, { once: true });
+    }
+  };
+
+  // Sync audio element when currentMedia changes (e.g. eject clears it)
+  useEffect(() => {
+    if (!currentMedia) {
+      if (sharedAudioRef.current) {
+        sharedAudioRef.current.pause();
+        sharedAudioRef.current.removeAttribute('src');
+        sharedAudioRef.current.load();
+        sharedAudioRef.current = null;
+      }
+      setAudioCurrentTime(0);
+      setAudioDuration(0);
       setAudioStatus(PlayerStatus.IDLE);
     }
+
+    return () => {
+      if (sharedAudioRef.current) {
+        sharedAudioRef.current.pause();
+      }
+    };
   }, [currentMedia]);
 
   // Update volume when it changes
@@ -311,21 +436,17 @@ const App: React.FC = () => {
     }
   }, [audioVolume]);
 
-  // Switch modes without ejecting - retain music playing
+  // Switch modes without ejecting — keep music playing
   const togglePlayerMode = (mode?: PlayerMode) => {
     if (mode) {
       setPlayerMode(mode);
+      if (mode !== 'walkman') setCassetteSide('A');
     } else {
-       // Cycle if no mode provided
       setPlayerMode(prev => {
         if (prev === 'walkman') return 'turntable';
         if (prev === 'turntable') return 'cd_player';
         return 'walkman';
       });
-    }
-    // Ideally, we eject on switch if format changes:
-    if (currentMedia) {
-       handleEject();
     }
   };
 
@@ -333,25 +454,32 @@ const App: React.FC = () => {
     if (!searchTerm.trim()) return;
 
     setIsLoading(true);
+    setSearchMessage(null);
 
     const results = await searchMusic(searchTerm);
 
+    if (results.length === 0) {
+      setSearchMessage('No tracks found — try a different search term.');
+      setIsLoading(false);
+      return;
+    }
+
     const positionedResults = results.map((song, index) => {
-      // Avoid Player area (x: 600-900, y: 200-680)
-      // Alternate between left and right of Player
       const baseX = index % 2 === 0 ? 200 + (index * 150) : 950 + (index * 150);
       return {
         ...song,
         x: baseX + (Math.random() * 100 - 50),
-        y: 150 + (index * 120) % 400 + (Math.random() * 100 - 50), // Avoid Player vertical area
+        y: 150 + (index * 120) % 400 + (Math.random() * 100 - 50),
         rotation: (Math.random() * 30) - 15
       };
     });
 
-    // Replace existing library with new search results
     setLibrary(positionedResults);
+    setSearchMessage(`Found ${results.length} track${results.length > 1 ? 's' : ''}!`);
     setIsLoading(false);
     setQuery('');
+
+    setTimeout(() => setSearchMessage(null), 4000);
   };
 
   const handleSearch = (e: React.FormEvent) => {
@@ -379,7 +507,6 @@ const App: React.FC = () => {
     if (currentMedia) {
       const returnedMedia = {
         ...currentMedia,
-        // Spawn to the right of Player to avoid overlap
         x: 950 + Math.random() * 100,
         y: 300 + Math.random() * 100,
         rotation: Math.random() * 20 - 10
@@ -387,9 +514,17 @@ const App: React.FC = () => {
       setLibrary(prev => [...prev, returnedMedia]);
     }
     setCurrentMedia(song);
+    addToHistory(song);
+    // Brief delay so insert SFX plays before music stream starts
+    setTimeout(() => loadAudio(song, true), 100);
   };
 
   const handleEject = () => {
+    playSound('EJECT');
+    if (sharedAudioRef.current) {
+      sharedAudioRef.current.pause();
+      setAudioStatus(PlayerStatus.STOPPED);
+    }
     if (currentMedia) {
       const ejectedMedia = {
         ...currentMedia,
@@ -403,8 +538,8 @@ const App: React.FC = () => {
     }
   };
 
-  // Shared audio control functions
   const handlePlay = async () => {
+    if (audioStatus === PlayerStatus.LOADING) return;
     if (sharedAudioRef.current) {
       try {
         await sharedAudioRef.current.play();
@@ -412,6 +547,14 @@ const App: React.FC = () => {
       } catch (e) {
         setAudioStatus(PlayerStatus.STOPPED);
       }
+    }
+  };
+
+  const handlePause = () => {
+    if (audioStatus === PlayerStatus.LOADING) return;
+    if (sharedAudioRef.current) {
+      sharedAudioRef.current.pause();
+      setAudioStatus(PlayerStatus.PAUSED);
     }
   };
 
@@ -546,35 +689,33 @@ const App: React.FC = () => {
       className="fixed inset-0 w-full h-full overflow-hidden select-none"
       style={{ touchAction: 'none' }}
     >
-      {playerMode === 'walkman' && <WalkmanBackground />}
-      {playerMode === 'turntable' && <TurntableBackground />}
-      {playerMode === 'cd_player' && <CDPlayerBackground />}
+      {playerMode === 'walkman' && <div className="animate-bg-enter absolute inset-0"><WalkmanBackground /></div>}
+      {playerMode === 'walkman' && <DeskLamp />}
+      {playerMode === 'walkman' && <AnalogImperfections />}
+      {playerMode === 'turntable' && <div className="animate-bg-enter absolute inset-0"><TurntableBackground /></div>}
+      {playerMode === 'cd_player' && <div className="animate-bg-enter absolute inset-0"><CDPlayerBackground /></div>}
 
       {/* --- MAIN WORKSPACE --- */}
       <div className="relative w-full h-full z-10">
 
         {/* Mode Switcher */}
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50">
-             <div className="flex items-center bg-gray-800 rounded-full p-1 border-2 border-gray-600 shadow-xl gap-1">
-                 <button 
-                    onClick={() => togglePlayerMode('walkman')}
-                    className={`px-4 py-1 rounded-full text-xs font-bold transition-all ${playerMode === 'walkman' ? 'bg-purple-500 text-white shadow-[0_0_10px_rgba(168,85,247,0.5)]' : 'text-gray-400 hover:text-white'}`}
-                 >
-                    WALKMAN
-                 </button>
-                 <button 
-                    onClick={() => togglePlayerMode('turntable')}
-                    className={`px-4 py-1 rounded-full text-xs font-bold transition-all ${playerMode === 'turntable' ? 'bg-yellow-600 text-white shadow-[0_0_10px_rgba(202,138,4,0.5)]' : 'text-gray-400 hover:text-white'}`}
-                 >
-                    TURNTABLE
-                 </button>
-                 <button 
-                    onClick={() => togglePlayerMode('cd_player')}
-                    className={`px-4 py-1 rounded-full text-xs font-bold transition-all ${playerMode === 'cd_player' ? 'bg-blue-500 text-white shadow-[0_0_10px_rgba(59,130,246,0.5)]' : 'text-gray-400 hover:text-white'}`}
-                 >
-                    CD PLAYER
-                 </button>
-             </div>
+          <div className="relative flex items-center bg-gray-900/85 backdrop-blur-md rounded-full p-1 border border-gray-600/60 shadow-2xl shadow-black/40">
+            {([
+              { id: 'walkman' as const, label: 'WALKMAN', active: 'bg-purple-500 shadow-[0_0_14px_rgba(168,85,247,0.45)]', hover: 'hover:text-purple-300' },
+              { id: 'turntable' as const, label: 'TURNTABLE', active: 'bg-amber-600 shadow-[0_0_14px_rgba(202,138,4,0.45)]', hover: 'hover:text-amber-300' },
+              { id: 'cd_player' as const, label: 'CD PLAYER', active: 'bg-blue-500 shadow-[0_0_14px_rgba(59,130,246,0.45)]', hover: 'hover:text-blue-300' },
+            ]).map(({ id, label, active, hover }) => (
+              <button
+                key={id}
+                onClick={() => togglePlayerMode(id)}
+                className={`relative z-10 px-5 py-1.5 rounded-full text-xs font-bold tracking-wide transition-all duration-300 ease-out
+                  ${playerMode === id ? `${active} text-white scale-105` : `text-gray-400 ${hover}`}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* PLAYER - DRAGGABLE */}
@@ -586,7 +727,7 @@ const App: React.FC = () => {
               : 'cursor-grab transition-transform duration-300'
             }
             ${isHoveringPlayer && dragState
-              ? playerMode === 'walkman' 
+              ? playerMode === 'walkman'
                 ? 'ring-4 ring-purple-500/50 ring-offset-4 ring-offset-transparent scale-[1.05] drop-shadow-[0_0_30px_rgba(168,85,247,0.6)]'
                 : playerMode === 'turntable'
                   ? 'ring-4 ring-yellow-500/50 ring-offset-4 ring-offset-transparent scale-[1.05] drop-shadow-[0_0_30px_rgba(202,138,4,0.6)]'
@@ -597,7 +738,7 @@ const App: React.FC = () => {
           style={{
             left: playerPosition.x,
             top: playerPosition.y,
-            transform: `rotate(${playerPosition.rotation}deg)`
+            transform: `rotate(${playerPosition.rotation}deg)`,
           }}
           onPointerDown={handlePlayerPointerDown}
           onPointerMove={handlePlayerPointerMove}
@@ -615,6 +756,7 @@ const App: React.FC = () => {
                   volume: audioVolume,
                   setVolume: setAudioVolume,
                   onPlay: handlePlay,
+                  onPause: handlePause,
                   onStop: handleStop,
                   onSeek: handleSeek,
                   isScrubbingRef: isScrubbingRef
@@ -631,6 +773,7 @@ const App: React.FC = () => {
                   volume: audioVolume,
                   setVolume: setAudioVolume,
                   onPlay: handlePlay,
+                  onPause: handlePause,
                   onStop: handleStop,
                   onSeek: handleSeek,
                   isScrubbingRef: isScrubbingRef
@@ -647,6 +790,7 @@ const App: React.FC = () => {
                     volume: audioVolume,
                     setVolume: setAudioVolume,
                     onPlay: handlePlay,
+                    onPause: handlePause,
                     onStop: handleStop,
                     onSeek: handleSeek,
                     isScrubbingRef: isScrubbingRef
@@ -659,10 +803,11 @@ const App: React.FC = () => {
         <div className="absolute inset-0 pointer-events-none z-30">
           {library.map((song) => {
             const isDragging = dragState?.id === song.id;
+            const isWalkmanMode = playerMode === 'walkman';
             const getSizeClass = () => {
-                if (playerMode === 'walkman') return 'w-[280px]';
+                if (isWalkmanMode) return 'w-[200px]';
                 if (playerMode === 'turntable') return 'w-[200px]';
-                return 'w-[160px]'; // CD size
+                return 'w-[160px]';
             };
 
             return (
@@ -672,14 +817,18 @@ const App: React.FC = () => {
                     ${isDragging
                     ? `z-50 cursor-grabbing transition-none ${
                         isHoveringPlayer
-                          ? playerMode === 'walkman'
+                          ? isWalkmanMode
                             ? 'drop-shadow-[0_0_40px_rgba(168,85,247,0.8)] drop-shadow-[0_35px_35px_rgba(0,0,0,0.6)] scale-[1.15]'
                             : playerMode === 'turntable'
                               ? 'drop-shadow-[0_0_40px_rgba(202,138,4,0.8)] drop-shadow-[0_35px_35px_rgba(0,0,0,0.6)] scale-[1.15]'
                               : 'drop-shadow-[0_0_40px_rgba(59,130,246,0.8)] drop-shadow-[0_35px_35px_rgba(0,0,0,0.6)] scale-[1.15]'
                           : 'drop-shadow-[0_0_25px_rgba(255,255,255,0.4)] drop-shadow-[0_35px_35px_rgba(0,0,0,0.5)] scale-[1.08]'
                       }`
-                    : 'z-auto cursor-grab hover:scale-105 hover:z-40 drop-shadow-[0_4px_6px_rgba(0,0,0,0.3)] transition-all duration-300 ease-out'
+                    : `z-auto cursor-grab transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]
+                      ${isWalkmanMode
+                        ? 'opacity-40 hover:opacity-80 hover:scale-105 hover:z-40 drop-shadow-[0_6px_10px_rgba(0,0,0,0.3)]'
+                        : 'hover:scale-105 hover:z-40 drop-shadow-[0_8px_12px_rgba(0,0,0,0.35)]'
+                      }`
                   }
                   `}
                 style={{
@@ -721,7 +870,19 @@ const App: React.FC = () => {
           handleSearch={handleSearch}
           handleSurpriseMe={handleSurpriseMe}
           isLoading={isLoading}
+          searchMessage={searchMessage}
           mode={playerMode}
+        />
+
+        {/* Play history stacker */}
+        <HistoryStacker
+          history={playerMode === 'walkman' && cassetteSide === 'B' ? [...playHistory].reverse() : playHistory}
+          playerMode={playerMode}
+          cassetteSide={playerMode === 'walkman' ? cassetteSide : undefined}
+          isExpanded={isHistoryExpanded}
+          onToggleExpand={() => setIsHistoryExpanded(prev => !prev)}
+          onReplay={handleHistoryReplay}
+          onClear={handleClearHistory}
         />
 
       </div>

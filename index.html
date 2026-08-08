@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Rock+Salt&family=Inter:wght@400;600;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;1,9..40,400&family=IBM+Plex+Mono:wght@400;500;600&family=Permanent+Marker&display=swap"
       rel="stylesheet"
     />
     <link
@@ -28,15 +28,61 @@
       }
 
       @keyframes spin {
-        from {
-          transform: rotate(0deg);
-        }
-        to {
-          transform: rotate(360deg);
-        }
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
       }
-      .animate-spin-slow {
-        animation: spin 2s linear infinite;
+      @keyframes spin-vinyl {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      @keyframes spin-cd {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      @keyframes spin-reel {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      @keyframes ambient-pulse {
+        0%, 100% { opacity: 0.6; }
+        50% { opacity: 1; }
+      }
+      @keyframes lcd-flicker {
+        0%, 100% { opacity: 1; }
+        92% { opacity: 1; }
+        93% { opacity: 0.85; }
+        94% { opacity: 1; }
+      }
+      @keyframes bg-fade-in {
+        from { opacity: 0; transform: scale(1.02); }
+        to { opacity: 1; transform: scale(1); }
+      }
+
+      .animate-spin-slow { animation: spin 2s linear infinite; }
+      .animate-spin-vinyl { animation: spin-vinyl 1.8s linear infinite; transform-origin: center; }
+      .animate-spin-cd { animation: spin-cd 1.4s linear infinite; transform-origin: center; }
+      .animate-spin-reel { animation: spin-reel 3.5s linear infinite reverse; transform-origin: center; }
+      .animate-spin-reel-fast { animation: spin-reel 0.55s linear infinite reverse; transform-origin: center; }
+      @keyframes loading-pulse {
+        0%, 100% { opacity: 0.4; }
+        50% { opacity: 1; }
+      }
+      @keyframes loading-dots {
+        0%, 20% { content: '.'; }
+        40% { content: '..'; }
+        60%, 100% { content: '...'; }
+      }
+      .animate-loading-pulse { animation: loading-pulse 1.2s ease-in-out infinite; }
+      .animate-loading-spin { animation: spin 0.8s linear infinite; }
+      .animate-bg-enter { animation: bg-fade-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+
+      @media (prefers-reduced-motion: reduce) {
+        .animate-spin-slow,
+        .animate-spin-vinyl,
+        .animate-spin-cd,
+        .animate-spin-reel,
+        .animate-lcd,
+        .animate-bg-enter { animation: none; }
       }
 
       /* Texture/Noise overlay effect */
@@ -51,9 +97,57 @@
         z-index: 50;
       }
 
-      .font-hand {
-        font-family: "Permanent Marker", cursive;
+      .font-hand { font-family: "Permanent Marker", cursive; }
+      .font-mono { font-family: "IBM Plex Mono", monospace; }
+      .font-display { font-family: "DM Sans", sans-serif; }
+
+      .cassette-shadow {
+        filter: drop-shadow(0 18px 28px rgba(0,0,0,0.45)) drop-shadow(0 6px 12px rgba(0,0,0,0.3));
       }
+
+      @keyframes cassette-eject {
+        0% { transform: rotate(90deg) scale(0.48) translateY(0); opacity: 1; }
+        100% { transform: rotate(90deg) scale(0.48) translateY(-140px); opacity: 0; }
+      }
+      @keyframes cassette-insert {
+        0% { transform: rotate(90deg) scale(0.48) translateY(-120px); opacity: 0; }
+        70% { transform: rotate(90deg) scale(0.48) translateY(8px); opacity: 1; }
+        100% { transform: rotate(90deg) scale(0.48) translateY(0); opacity: 1; }
+      }
+      .animate-cassette-eject { animation: cassette-eject 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+      .animate-cassette-insert { animation: cassette-insert 0.65s cubic-bezier(0.34, 1.2, 0.64, 1) forwards; }
+
+      .animate-lcd { animation: lcd-flicker 4s ease-in-out infinite; }
+
+      @keyframes analog-glitch {
+        0%, 100% { transform: translateX(0); filter: none; }
+        20% { transform: translateX(-2px); filter: hue-rotate(2deg); }
+        40% { transform: translateX(1px); }
+        60% { transform: translateX(-1px); filter: saturate(1.1); }
+        80% { transform: translateX(2px); }
+      }
+      @keyframes analog-wobble {
+        0%, 100% { transform: translateY(0); }
+        25% { transform: translateY(-1px) skewX(0.3deg); }
+        75% { transform: translateY(1px) skewX(-0.3deg); }
+      }
+      @keyframes tape-wobble {
+        0%, 100% { transform: rotate(90deg) scale(0.48) translateY(0) rotateZ(0deg); }
+        50% { transform: rotate(90deg) scale(0.48) translateY(0) rotateZ(0.15deg); }
+      }
+      .analog-glitch {
+        background: linear-gradient(90deg, rgba(255,0,0,0.02) 0%, transparent 33%, rgba(0,255,255,0.02) 66%, transparent 100%);
+        mix-blend-mode: screen;
+        animation: analog-glitch 0.2s steps(2) forwards;
+      }
+      .analog-wobble {
+        background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.015) 2px, rgba(255,255,255,0.015) 3px);
+        animation: analog-wobble 0.5s ease-in-out;
+      }
+      .tape-wobble-play { animation: tape-wobble 3s ease-in-out infinite; }
+
+      .btn-press:active { transform: translateY(2px); }
+      .btn-press:hover { filter: brightness(1.08); }
 
       .wood-texture {
         background-color: #3a2820;
